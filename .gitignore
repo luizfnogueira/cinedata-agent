@@ -1,0 +1,25 @@
+# Banco de dados (581 MB — baixar do Drive, ver README)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+
+# Segredos
+.env
+
+# Cache de respostas do agente
+.cache/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
