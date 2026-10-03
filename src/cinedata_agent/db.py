@@ -127,4 +127,8 @@ class Database:
         )
 
     def close(self) -> None:
+        # Remove os callbacks Python antes de fechar: o SQLite não deve chamar código
+        # Python durante a finalização do interpretador.
+        self._conn.set_progress_handler(None, 0)
+        self._conn.set_authorizer(None)
         self._conn.close()

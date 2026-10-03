@@ -83,15 +83,15 @@ def should_fallback(error: Exception) -> bool:
     return True
 
 
-def build_model(settings: Settings, model_name: str) -> Model:
+def build_model(settings: Settings, model_name: str, provider: OpenRouterProvider | None = None) -> Model:
     """Um único modelo do OpenRouter, com timeout por requisição."""
-    model = OpenRouterModel(model_name, provider=build_provider(settings))
+    model = OpenRouterModel(model_name, provider=provider or build_provider(settings))
     return TimeoutModel(model, settings.model_timeout_seconds)
 
 
-def build_fallback_model(settings: Settings) -> Model:
+def build_fallback_model(settings: Settings, provider: OpenRouterProvider | None = None) -> Model:
     """Todos os modelos de settings.models em cadeia: se um falhar, tenta o próximo, na ordem."""
-    provider = build_provider(settings)
+    provider = provider or build_provider(settings)
     models = [
         TimeoutModel(OpenRouterModel(name, provider=provider), settings.model_timeout_seconds)
         for name in settings.models

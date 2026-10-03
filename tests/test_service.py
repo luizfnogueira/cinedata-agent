@@ -1,6 +1,7 @@
 """Testes da fachada CineDataService com modelo simulado: não chamam a API."""
 
 import pytest
+from openai import AsyncOpenAI
 from pydantic_ai import UnexpectedModelBehavior
 from pydantic_ai.messages import ModelMessage, ModelResponse, TextPart, ToolCallPart
 from pydantic_ai.models.function import AgentInfo, FunctionModel
@@ -65,3 +66,20 @@ def test_falha_em_todas_as_consultas_nao_e_guardada(db, tmp_path):
 def test_funciona_sem_cache(db, scripted):
     service = CineDataService(db, scripted.model, cache=None)
     assert service.ask("Top 3").answer == "Avatar lidera."
+
+
+class FakeDb:
+    closed = False
+
+    def close(self):
+        self.closed = True
+
+
+def test_close_fecha_cliente_http_e_banco():
+
+    client = AsyncOpenAI(api_key="teste", base_url="https://openrouter.ai/api/v1")
+    fake_db = FakeDb()
+    with CineDataService(fake_db, ScriptedModel().model, http_client=client):
+        pass
+    assert fake_db.closed
+    assert client.is_closed()

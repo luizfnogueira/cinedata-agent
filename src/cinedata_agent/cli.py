@@ -77,6 +77,12 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{e}")
         return 1
 
+    # "with": fecha banco e conexões HTTP explicitamente ao sair (ver CineDataService.close)
+    with service:
+        return run(service, args)
+
+
+def run(service: CineDataService, args: argparse.Namespace) -> int:
     if args.limpar_cache:
         removed = service.cache.clear() if service.cache else 0
         print(f"{removed} respostas removidas do cache.")
