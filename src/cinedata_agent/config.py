@@ -20,11 +20,13 @@ class Settings(BaseSettings):
 
     # Ordem importa: o primeiro é o principal, os demais são fallback.
     # Modelos de provedores diferentes não compartilham o mesmo pool de capacidade.
+    # Qwen é o principal: no smoke test foi o que melhor seguiu as regras de resposta,
+    # enquanto o Nemotron errou a escala de valores (R$ 1,0 mi apresentado como R$ 1,0 mil).
     models: list[str] = Field(
         default=[
+            "qwen/qwen3.8-27b:free",
             "nvidia/nemotron-3.5-lightning:free",
             "google/gemma-4-26b-a4b-it:free",
-            "qwen/qwen3.8-27b:free",
         ],
         validation_alias="CINEDATA_MODELS",
     )
@@ -35,6 +37,10 @@ class Settings(BaseSettings):
     # Limites de execução das consultas geradas pelo agente
     max_rows: int = 50
     query_timeout_seconds: float = 10.0
+
+    # Tempo máximo de relógio por requisição ao modelo. Respostas normais levam de 3 a 15 s;
+    # acima disso o pedido costuma estar parado na fila do pool gratuito.
+    model_timeout_seconds: float = 60.0
 
 
 @lru_cache

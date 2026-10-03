@@ -4,20 +4,11 @@ import sqlite3
 
 import pytest
 
-from cinedata_agent.config import PROJECT_ROOT
 from cinedata_agent.db import Database, QueryError, QueryTimeoutError
 from cinedata_agent.guardrails import UnsafeQueryError
+from conftest import requires_db
 
-DB_PATH = PROJECT_ROOT / "cinerocket.db"
-
-pytestmark = pytest.mark.skipif(not DB_PATH.exists(), reason="cinerocket.db não encontrado")
-
-
-@pytest.fixture(scope="module")
-def db():
-    database = Database(DB_PATH, max_rows=50, timeout_seconds=10)
-    yield database
-    database.close()
+pytestmark = requires_db
 
 
 def test_executa_consulta_e_retorna_colunas(db):

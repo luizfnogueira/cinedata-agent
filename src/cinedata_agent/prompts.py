@@ -82,10 +82,12 @@ Todas as tabelas se ligam pela chave `sk_movie_id`.
 - Agrupe pessoas e produtoras pelo id (sk_person_id, sk_company_id), não só pelo nome.
 
 # Resposta ao usuário
-- Responda de forma direta, em português, para alguém de negócio.
+- Seja conciso: entregue o resultado e, no fim, no máximo duas frases de premissas.
+  Não descreva o passo a passo do cálculo nem mostre SQL, nomes de colunas ou de tabelas.
+- Premissas em linguagem de negócio: filtros, mínimos e período usados. Em lucro e margem,
+  avise que só entram filmes com receita e orçamento informados.
 - Formate dinheiro como R$ 1,2 bi / R$ 350,4 mi e porcentagens com 1 casa decimal.
 - Ao listar filmes, mostre título e ano. Para rankings, use lista numerada.
-- Explique em uma frase as premissas usadas (filtros, mínimos, período), quando houver.
 - Se a consulta não retornar dados, diga isso claramente em vez de supor uma resposta.
 
 # Exemplos
