@@ -50,6 +50,7 @@ class AgentAnswer:
     model_name: str | None
     requests: int
     messages: list[ModelMessage]
+    cached: bool = False
 
     @property
     def final_query(self) -> ExecutedQuery | None:

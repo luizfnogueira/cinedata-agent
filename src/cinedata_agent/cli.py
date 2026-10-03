@@ -3,42 +3,47 @@
 Uso:
     python cli.py "Quais os 10 filmes com maior receita?"   # uma pergunta
     python cli.py                                           # modo interativo
-    python cli.py --modelo nvidia/nemotron-3.5-lightning:free "..."
+    python cli.py --cota                                    # requisições restantes hoje
+    python cli.py --sem-cache "..."                         # ignora respostas guardadas
+    python cli.py --modelo nvidia/nemotron-3.5-lightning:free "..."   # um modelo só, sem fallback
 """
 
 import argparse
 import sys
 import time
+from urllib.error import URLError
 
 from pydantic import ValidationError
-from pydantic_ai import ModelAPIError, ModelHTTPError, UnexpectedModelBehavior, UsageLimitExceeded
 
-from cinedata_agent.agent import AgentAnswer, ask, create_agent
-from cinedata_agent.config import get_settings
-from cinedata_agent.db import Database
-from cinedata_agent.llm import build_model
-
-
-def explain_model_error(error: ModelHTTPError) -> str:
-    body = str(error.body or "").lower()
-    if error.status_code == 401:
-        return "Chave do OpenRouter inválida ou ausente. Confira OPENROUTER_API_KEY no .env."
-    if error.status_code == 429 and "per-day" in body:
-        return "Cota diária de modelos gratuitos esgotada (50 requisições). Ela renova às 21h (horário de Brasília)."
-    if error.status_code == 429 and "per-min" in body:
-        return "Limite de 20 requisições por minuto atingido. Aguarde um minuto e tente de novo."
-    if error.status_code == 429:
-        return "O provedor do modelo está sobrecarregado no momento. Tente de novo em instantes ou use outro modelo (--modelo)."
-    return f"Erro {error.status_code} do OpenRouter: {error.body}"
+from cinedata_agent.agent import AgentAnswer
+from cinedata_agent.config import Settings, get_settings
+from cinedata_agent.errors import AGENT_ERRORS, describe_error
+from cinedata_agent.quota import fetch_quota
+from cinedata_agent.service import CineDataService
 
 
-def print_answer(answer: AgentAnswer) -> None:
+def print_answer(answer: AgentAnswer, elapsed_seconds: float) -> None:
     print(f"\n{answer.answer}\n")
     for i, query in enumerate(answer.queries, start=1):
-        status = f"{len(query.result.rows)} linhas, {query.result.elapsed_seconds:.2f} s" if query.succeeded else f"ERRO: {query.error}"
+        if query.succeeded:
+            status = f"{len(query.result.rows)} linhas, {query.result.elapsed_seconds:.2f} s"
+        else:
+            status = f"ERRO: {query.error}"
         print(f"--- SQL {i} ({status})")
         print(query.sql.strip())
-    print(f"--- modelo: {answer.model_name} · requisições: {answer.requests}\n")
+    origin = "cache (0 requisições)" if answer.cached else f"requisições: {answer.requests}"
+    print(f"--- modelo: {answer.model_name} · {origin} · tempo: {elapsed_seconds:.1f} s\n")
+
+
+def print_quota(settings: Settings) -> int:
+    try:
+        quota = fetch_quota(settings.openrouter_api_key.get_secret_value())
+    except URLError as e:
+        print(f"Não foi possível consultar a cota: {e}")
+        return 1
+    print(f"Cota de hoje: {quota.used} usadas, {quota.remaining} de {quota.limit} restantes (renova às 21h).")
+    print("O contador do OpenRouter pode atrasar alguns minutos.")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -49,46 +54,48 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description="Pergunte ao catálogo de filmes da CineData em português.")
     parser.add_argument("pergunta", nargs="*", help="pergunta em linguagem natural (vazio = modo interativo)")
-    parser.add_argument("--modelo", help="modelo do OpenRouter a usar (padrão: o primeiro de CINEDATA_MODELS)")
+    parser.add_argument("--modelo", help="usa um único modelo do OpenRouter, sem fallback")
+    parser.add_argument("--sem-cache", action="store_true", help="ignora respostas guardadas e consulta o modelo")
+    parser.add_argument("--limpar-cache", action="store_true", help="apaga todas as respostas guardadas e sai")
+    parser.add_argument("--cota", action="store_true", help="mostra quantas requisições gratuitas restam hoje e sai")
     args = parser.parse_args(argv)
 
     try:
         settings = get_settings()
-        model = build_model(settings, args.modelo)
-        print("Carregando o banco...", end=" ", flush=True)
-        db = Database.from_settings(settings)
-        print("pronto.")
     except ValidationError:
         print("OPENROUTER_API_KEY não configurada. Copie .env.example para .env e preencha a chave.")
         return 1
+
+    if args.cota:
+        return print_quota(settings)
+
+    try:
+        print("Carregando o banco...", end=" ")
+        service = CineDataService.from_settings(settings, model_name=args.modelo)
+        print("pronto.")
     except FileNotFoundError as e:
-        print(e)
+        print(f"\n{e}")
         return 1
 
-    agent = create_agent(model)
-    questions = [" ".join(args.pergunta)] if args.pergunta else None
+    if args.limpar_cache:
+        removed = service.cache.clear() if service.cache else 0
+        print(f"{removed} respostas removidas do cache.")
+        return 0
 
     def handle(question: str) -> bool:
+        start = time.monotonic()
         try:
-            start = time.monotonic()
-            answer = ask(agent, question, db)
-            print_answer(answer)
-            print(f"(tempo total: {time.monotonic() - start:.1f} s)\n")
-            return True
-        except ModelHTTPError as e:
-            print(explain_model_error(e))
-        except ModelAPIError as e:
-            print(f"{e} Tente de novo ou use outro modelo (--modelo).")
-        except UsageLimitExceeded:
-            print("O agente atingiu o limite de requisições para esta pergunta sem chegar a uma resposta. Tente reformulá-la.")
-        except UnexpectedModelBehavior as e:
-            print(f"O modelo não conseguiu gerar uma consulta válida: {e}")
-        return False
+            answer = service.ask(question, use_cache=not args.sem_cache)
+        except AGENT_ERRORS as e:
+            print(describe_error(e))
+            return False
+        print_answer(answer, time.monotonic() - start)
+        return True
 
-    if questions:
-        return 0 if handle(questions[0]) else 1
+    if args.pergunta:
+        return 0 if handle(" ".join(args.pergunta)) else 1
 
-    print("Modo interativo. Digite sua pergunta (ou 'sair'). Cada pergunta gasta ~2 requisições da cota.")
+    print("Modo interativo. Digite sua pergunta (ou 'sair'). Perguntas novas gastam ~2 requisições da cota.")
     while True:
         try:
             question = input("> ").strip()
