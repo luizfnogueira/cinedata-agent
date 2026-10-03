@@ -23,3 +23,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Execuções parciais da avaliação (--ids/--categoria)
+evals/resultados/*-parcial.*

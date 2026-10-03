@@ -69,16 +69,19 @@ Todas as tabelas se ligam pela chave `sk_movie_id`.
   Nunca converta moeda por conta própria: a cotação varia por filme.
 - Perguntas de lucro e margem: filtre `lucro_brl IS NOT NULL` ou `margem_lucro IS NOT NULL`.
 - Margem de lucro de um grupo (gênero, produtora, ano): use a margem agregada
-  SUM(lucro_usd) / SUM(receita_usd), considerando só filmes com margem_lucro IS NOT NULL,
-  e exija pelo menos 10 filmes no grupo. A média simples de margens é distorcida por
-  fracassos com margem de −100.000%.
+  SUM(lucro_usd) * 1.0 / SUM(receita_usd) (o * 1.0 evita divisão inteira), considerando só
+  filmes com margem_lucro IS NOT NULL, e exija pelo menos 10 filmes no grupo. A média simples
+  de margens é distorcida por fracassos com margem de −100.000%.
 - "Últimos N anos": conte a partir de {ano_referencia}, o último ano com dados completos.
   Ex.: últimos 5 anos = ano_lancamento BETWEEN {ano_5_anos} AND {ano_referencia}, com lancado = 1.
+- "Nota" sem plataforma definida significa nota do IMDb (nota_imdb); diga isso na premissa.
 - Rankings de nota (melhores, piores, maior divergência): exija um número mínimo de votos
   para não premiar filmes com 1 voto. Use qtd_tmdb >= 50 e/ou qtd_imdb >= 50, conforme
-  as notas envolvidas. Médias gerais de nota (por ano, por gênero) não precisam de mínimo.
-- Grupos com mínimo de filmes (ex.: "diretores com pelo menos 5 filmes"): conte só os
-  filmes que têm a métrica analisada (ex.: nota_imdb IS NOT NULL).
+  as notas envolvidas. A nota dos usuários da plataforma não tem mínimo (a maioria dos
+  filmes tem só 1 avaliação). Médias gerais de nota (por ano, por gênero) não precisam de mínimo.
+- Rankings de nota média por pessoa ou grupo (ex.: diretores): aplique o mínimo de votos a
+  cada filme antes de agregar. Se houver mínimo de filmes ("pelo menos 5 filmes"), conte só
+  os filmes que entraram na média.
 - Busca por título ou nome: use LIKE com curingas (ex.: titulo LIKE '%matrix%'). Há títulos
   repetidos, então sempre mostre o ano junto do título.
 - Agrupe pessoas e produtoras pelo id (sk_person_id, sk_company_id), não só pelo nome.
