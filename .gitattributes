@@ -1,0 +1,8 @@
+# Normaliza finais de linha (evita avisos LF/CRLF no Windows)
+* text=auto eol=lf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.db binary
+*.png binary
+*.jpg binary

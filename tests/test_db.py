@@ -6,9 +6,6 @@ import pytest
 
 from cinedata_agent.db import Database, QueryError, QueryTimeoutError
 from cinedata_agent.guardrails import UnsafeQueryError
-from conftest import requires_db
-
-pytestmark = requires_db
 
 
 def test_executa_consulta_e_retorna_colunas(db):

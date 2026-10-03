@@ -13,6 +13,7 @@ from pydantic_ai.messages import ModelMessage
 from pydantic_ai.models import Model
 
 from cinedata_agent.db import Database, QueryError, QueryResult
+from cinedata_agent.formatting import format_cell
 from cinedata_agent.guardrails import UnsafeQueryError
 from cinedata_agent.prompts import build_system_prompt
 
@@ -56,20 +57,16 @@ class AgentAnswer:
         return next((q for q in reversed(self.queries) if q.succeeded), None)
 
 
-def _format_value(value: object) -> str:
-    if value is None:
-        return "NULL"
-    if isinstance(value, float):
-        return f"{value:.2f}" if abs(value) >= 1 else f"{value:.4f}"
-    return str(value)
-
-
 def format_result_for_model(result: QueryResult) -> str:
-    """Resultado em texto compacto: menos tokens que JSON e fácil de ler para o modelo."""
+    """Resultado em texto compacto: menos tokens que JSON e fácil de ler para o modelo.
+
+    Dinheiro e margem já vão formatados (R$ 1,04 mi / 76,0%), para o modelo não
+    precisar converter escala.
+    """
     if not result.rows:
         return "A consulta não retornou nenhuma linha."
     lines = [" | ".join(result.columns)]
-    lines += [" | ".join(_format_value(v) for v in row) for row in result.rows]
+    lines += [" | ".join(format_cell(col, v) for col, v in zip(result.columns, row)) for row in result.rows]
     footer = f"({len(result.rows)} linhas"
     if result.truncated:
         footer += "; resultado truncado, existem mais linhas"

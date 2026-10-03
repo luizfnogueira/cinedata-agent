@@ -7,9 +7,6 @@ from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 from cinedata_agent.agent import MAX_REQUESTS_PER_QUESTION, ask, create_agent, format_result_for_model
 from cinedata_agent.db import QueryResult
-from conftest import requires_db
-
-pytestmark = requires_db
 
 TOP3_SQL = "SELECT titulo, ano_lancamento, receita_brl FROM vw_filmes WHERE receita_brl IS NOT NULL ORDER BY receita_brl DESC LIMIT 3"
 
@@ -103,15 +100,15 @@ def test_modelo_em_loop_e_interrompido_pelo_limite_de_requisicoes(agent, db):
 
 def test_formatacao_do_resultado_para_o_modelo():
     result = QueryResult(
-        columns=["titulo", "receita_brl", "margem"],
-        rows=[("Filme A", 1234567.891, 0.123456), ("Filme B", None, -2.0)],
+        columns=["titulo", "receita_brl", "margem_lucro", "nota_imdb"],
+        rows=[("Filme A", 1234567.891, 0.123456, 7.85), ("Filme B", None, -2.0, None)],
         truncated=True,
         elapsed_seconds=0.1,
     )
     text = format_result_for_model(result)
-    assert text.splitlines()[0] == "titulo | receita_brl | margem"
-    assert "Filme A | 1234567.89 | 0.1235" in text
-    assert "Filme B | NULL | -2.00" in text
+    assert text.splitlines()[0] == "titulo | receita_brl | margem_lucro | nota_imdb"
+    assert "Filme A | R$ 1,23 mi | 12,3% | 7.85" in text
+    assert "Filme B | NULL | -200,0% | NULL" in text
     assert "truncado" in text
 
 

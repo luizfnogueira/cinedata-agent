@@ -18,15 +18,17 @@ class Settings(BaseSettings):
 
     openrouter_api_key: SecretStr = Field(validation_alias="OPENROUTER_API_KEY")
 
-    # Ordem importa: o primeiro é o principal, os demais são fallback.
-    # Modelos de provedores diferentes não compartilham o mesmo pool de capacidade.
-    # Qwen é o principal: no smoke test foi o que melhor seguiu as regras de resposta,
-    # enquanto o Nemotron errou a escala de valores (R$ 1,0 mi apresentado como R$ 1,0 mil).
+    # Ordem importa: o primeiro é o principal, os demais são fallback, ordenados por tempo
+    # de resposta observado. Modelos de provedores diferentes não dividem o mesmo pool.
+    # - Qwen: o mais rápido e consistente (4–10 s por pergunta) e o que melhor segue as regras.
+    # - Gemma: quando lotado, devolve 429 na hora, então falhar nele custa ~0 s.
+    # - Nemotron: por último. Travou na fila em 3 de 6 chamadas (cada trava custa o timeout
+    #   inteiro) e errou a escala de um valor (R$ 1,0 mi apresentado como R$ 1,0 mil).
     models: list[str] = Field(
         default=[
             "qwen/qwen3.8-27b:free",
-            "nvidia/nemotron-3.5-lightning:free",
             "google/gemma-4-26b-a4b-it:free",
+            "nvidia/nemotron-3.5-lightning:free",
         ],
         validation_alias="CINEDATA_MODELS",
     )
@@ -38,9 +40,10 @@ class Settings(BaseSettings):
     max_rows: int = 50
     query_timeout_seconds: float = 10.0
 
-    # Tempo máximo de relógio por requisição ao modelo. Respostas normais levam de 3 a 15 s;
-    # acima disso o pedido costuma estar parado na fila do pool gratuito.
-    model_timeout_seconds: float = 60.0
+    # Tempo máximo de relógio por requisição ao modelo. Respostas normais levaram de 2 a 10 s;
+    # acima disso o pedido costuma estar parado na fila do pool gratuito, e é melhor
+    # desistir logo e passar para o próximo modelo.
+    model_timeout_seconds: float = 45.0
 
 
 @lru_cache

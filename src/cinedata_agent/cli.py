@@ -25,6 +25,8 @@ def explain_model_error(error: ModelHTTPError) -> str:
         return "Chave do OpenRouter inválida ou ausente. Confira OPENROUTER_API_KEY no .env."
     if error.status_code == 429 and "per-day" in body:
         return "Cota diária de modelos gratuitos esgotada (50 requisições). Ela renova às 21h (horário de Brasília)."
+    if error.status_code == 429 and "per-min" in body:
+        return "Limite de 20 requisições por minuto atingido. Aguarde um minuto e tente de novo."
     if error.status_code == 429:
         return "O provedor do modelo está sobrecarregado no momento. Tente de novo em instantes ou use outro modelo (--modelo)."
     return f"Erro {error.status_code} do OpenRouter: {error.body}"

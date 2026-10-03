@@ -23,3 +23,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = [
+    # Aviso interno do pydantic_graph (dependência do PydanticAI), não do nosso código
+    "ignore:There is no current event loop:DeprecationWarning:pydantic_graph",
+]
