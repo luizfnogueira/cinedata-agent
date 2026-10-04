@@ -1,0 +1,12 @@
+# Configuração do Streamlit para quem usa a aplicação (lida a partir da raiz do projeto).
+
+[client]
+# Esconde do menu as opções de desenvolvedor (Deploy, Rerun, configurações).
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[theme]
+# Mesmo azul dos gráficos.
+primaryColor = "#2a78d6"

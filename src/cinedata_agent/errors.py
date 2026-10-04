@@ -39,3 +39,22 @@ def describe_error(error: BaseException) -> str:
     if isinstance(error, UnexpectedModelBehavior):
         return f"O modelo não conseguiu gerar uma consulta válida: {error}"
     return f"Erro inesperado: {error}"
+
+
+def _causes(error: BaseException) -> list[BaseException]:
+    return list(error.exceptions) if isinstance(error, FallbackExceptionGroup) else [error]
+
+
+def describe_error_for_user(error: BaseException) -> str:
+    """Versão para o usuário final da interface: sem nomes de modelos, cotas ou detalhes técnicos."""
+    causes = _causes(error)
+    if any(is_daily_quota_error(e) for e in causes):
+        return (
+            "O limite diário de uso do serviço de IA foi atingido. Novas perguntas voltam a funcionar "
+            "após as 21h (horário de Brasília); perguntas já respondidas continuam disponíveis."
+        )
+    if any(isinstance(e, ModelHTTPError) and e.status_code in (401, 402, 403) for e in causes):
+        return "O serviço de IA não está configurado corretamente. Avise o responsável pela aplicação."
+    if isinstance(error, (ModelAPIError, FallbackExceptionGroup)):
+        return "O serviço de IA está sobrecarregado no momento. Tente novamente em alguns instantes."
+    return "Não consegui montar uma consulta para essa pergunta. Tente reformulá-la de forma mais específica."

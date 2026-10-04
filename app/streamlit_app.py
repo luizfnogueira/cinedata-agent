@@ -4,9 +4,7 @@ Rodar (com o venv ativo, na raiz do projeto):
     streamlit run app/streamlit_app.py
 """
 
-import time
 from dataclasses import dataclass
-from urllib.error import URLError
 
 import pandas as pd
 import streamlit as st
@@ -16,13 +14,21 @@ from cinedata_agent.agent import AgentAnswer
 from cinedata_agent.charts import build_chart, plan_chart
 from cinedata_agent.config import PROJECT_ROOT, get_settings
 from cinedata_agent.db import QueryResult
-from cinedata_agent.errors import AGENT_ERRORS, describe_error
+from cinedata_agent.errors import AGENT_ERRORS, describe_error_for_user
 from cinedata_agent.evaluation import load_cases
 from cinedata_agent.formatting import format_cell, is_margin, money_symbol
-from cinedata_agent.quota import QuotaStatus, fetch_quota
 from cinedata_agent.service import CineDataService
 
-st.set_page_config(page_title="CineData · Analista de Filmes", page_icon="🎬")
+st.set_page_config(page_title="CineData Analytics", page_icon="🎬")
+
+# Categorias de análise da atividade, na ordem em que aparecem como exemplos.
+EXAMPLE_CATEGORIES = (
+    "Bilheteria e Finanças",
+    "Popularidade e Engajamento",
+    "Elenco e Equipe",
+    "Gêneros e Produtoras",
+    "Avaliações dos Usuários",
+)
 
 
 @dataclass
@@ -32,7 +38,6 @@ class Turn:
     question: str
     answer: AgentAnswer | None = None
     error: str | None = None
-    elapsed_seconds: float = 0.0
 
 
 # ── Recursos compartilhados ─────────────────────────────────────────────
@@ -44,20 +49,13 @@ def get_service() -> CineDataService:
     return CineDataService.from_settings(get_settings())
 
 
-@st.cache_data(ttl=60, show_spinner=False)
-def get_quota(api_key: str) -> QuotaStatus | None:
-    try:
-        return fetch_quota(api_key)
-    except URLError:
-        return None
-
-
 @st.cache_data(show_spinner=False)
 def example_questions() -> dict[str, list[str]]:
-    examples: dict[str, list[str]] = {}
+    """Perguntas da suíte de avaliação (evals/casos.toml), agrupadas pelas categorias da atividade."""
+    examples: dict[str, list[str]] = {category: [] for category in EXAMPLE_CATEGORIES}
     for case in load_cases(PROJECT_ROOT / "evals" / "casos.toml"):
-        if case.tipo == "consulta":
-            examples.setdefault(case.categoria, []).append(case.pergunta)
+        if case.tipo == "consulta" and case.categoria in examples:
+            examples[case.categoria].append(case.pergunta)
     return examples
 
 
@@ -85,59 +83,35 @@ def current_theme() -> str:
 
 def render_turn(turn: Turn) -> None:
     if turn.error:
-        st.error(turn.error, icon="⚠️")
+        st.warning(turn.error, icon="⚠️")
         return
     answer = turn.answer
     st.markdown(escape_markdown(answer.answer))
-
-    if answer.cached:
-        st.caption("⚡ Resposta do cache · 0 requisições")
-    else:
-        st.caption(f"{answer.model_name} · {answer.requests} requisições · {turn.elapsed_seconds:.1f} s")
 
     final = answer.final_query
     if final is None or not final.result.rows:
         return
     if plan := plan_chart(final.result):
         st.altair_chart(build_chart(plan, current_theme()), width="stretch")
-    with st.expander("Ver dados e SQL"):
+    with st.expander("Ver dados da consulta"):
         st.dataframe(display_frame(final.result), hide_index=True, width="stretch")
         if final.result.truncated:
             st.caption(f"Mostrando as primeiras {len(final.result.rows)} linhas.")
+        st.caption("Consulta SQL gerada pelo agente (somente leitura):")
         st.code(final.sql.strip(), language="sql")
-        retries = sum(not q.succeeded for q in answer.queries)
-        if retries:
-            st.caption(f"O agente corrigiu {retries} consulta(s) com erro antes desta.")
 
 
-def render_sidebar(api_key: str, models: list[str]) -> None:
+def render_sidebar() -> None:
     with st.sidebar:
-        st.subheader("Cota gratuita de hoje")
-        quota = get_quota(api_key)
-        if quota is None:
-            st.caption("Não foi possível consultar a cota agora.")
-        else:
-            st.metric("Requisições restantes", f"{quota.remaining} de {quota.limit}")
-            st.progress(quota.remaining / quota.limit if quota.limit else 0.0)
-            st.caption("Renova às 21h (Brasília). O contador do OpenRouter pode atrasar alguns minutos.")
-        if st.button("Atualizar cota", width="stretch"):
-            get_quota.clear()
-            st.rerun()
-
-        st.subheader("Configurações")
-        st.toggle(
-            "Usar respostas guardadas (cache)",
-            value=True,
-            key="use_cache",
-            help="Perguntas já feitas voltam do cache sem gastar requisições.",
+        st.subheader("Como usar")
+        st.markdown(
+            "Faça perguntas em português sobre o catálogo de filmes da CineData. O agente traduz a "
+            "pergunta em uma consulta à camada Gold, executa e responde com os dados."
         )
-        if st.button("Limpar conversa", width="stretch"):
+        st.caption("Cada pergunta é respondida de forma independente. O agente só lê os dados: nada é alterado.")
+        if st.button("Nova conversa", icon="🔄", width="stretch"):
             st.session_state.turns = []
             st.rerun()
-
-        st.subheader("Modelos")
-        st.caption("Se um falhar ou demorar, o próximo assume:")
-        st.markdown("\n".join(f"{i}. `{name}`" for i, name in enumerate(models, start=1)))
 
         st.subheader("Perguntas de exemplo")
         for category, questions in example_questions().items():
@@ -152,25 +126,18 @@ def render_sidebar(api_key: str, models: list[str]) -> None:
 
 
 def main() -> None:
-    st.title("🎬 CineData · Analista de Filmes")
-    st.caption(
-        "Pergunte em português sobre o catálogo de ~95 mil filmes: bilheteria, notas, elenco, gêneros e "
-        "produtoras. Cada pergunta nova gasta ~2 requisições da cota gratuita; perguntas repetidas vêm do cache."
-    )
+    st.title("🎬 CineData Analytics")
+    st.caption("Análises do catálogo de filmes em linguagem natural: bilheteria, notas, elenco, gêneros e produtoras.")
 
     try:
-        settings = get_settings()
-    except ValidationError:
-        st.error("OPENROUTER_API_KEY não configurada. Copie `.env.example` para `.env` e preencha a chave.")
-        st.stop()
-    try:
+        get_settings()
         service = get_service()
-    except FileNotFoundError as e:
-        st.error(str(e))
+    except (ValidationError, FileNotFoundError):
+        st.error("A aplicação não está configurada corretamente. Siga o passo a passo do README.", icon="🚫")
         st.stop()
 
     st.session_state.setdefault("turns", [])
-    render_sidebar(settings.openrouter_api_key.get_secret_value(), settings.models)
+    render_sidebar()
 
     for turn in st.session_state.turns:
         with st.chat_message("user"):
@@ -178,7 +145,7 @@ def main() -> None:
         with st.chat_message("assistant"):
             render_turn(turn)
 
-    typed = st.chat_input("Ex.: Quais os 5 filmes de terror com maior bilheteria?")
+    typed = st.chat_input("Ex.: Quais os 5 filmes mais populares?")
     question = typed or st.session_state.pop("pending_question", None)
     if not question:
         if not st.session_state.turns:
@@ -190,16 +157,12 @@ def main() -> None:
     with st.chat_message("assistant"):
         turn = Turn(question)
         with st.spinner("Consultando o catálogo..."):
-            start = time.monotonic()
             try:
-                turn.answer = service.ask(question, use_cache=st.session_state.use_cache)
+                turn.answer = service.ask(question)
             except AGENT_ERRORS as e:
-                turn.error = describe_error(e)
-            turn.elapsed_seconds = time.monotonic() - start
+                turn.error = describe_error_for_user(e)
         render_turn(turn)
     st.session_state.turns.append(turn)
-    if turn.answer and not turn.answer.cached:
-        get_quota.clear()  # a cota mudou: a barra lateral busca de novo na próxima interação
 
 
 main()

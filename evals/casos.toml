@@ -65,6 +65,51 @@ ORDER BY margem_lucro DESC
 LIMIT 10
 """
 
+[[casos]]
+id = "fin-04"
+categoria = "Bilheteria e Finanças"
+pergunta = "Quais os 5 filmes de terror com maior bilheteria?"
+colunas = ["titulo", "receita_brl"]
+ordenado = true
+ordem_por = "receita_brl"
+contem = ["It Chapter Two"]
+sql = """
+SELECT f.titulo, f.ano_lancamento, f.receita_brl
+FROM vw_filmes f
+JOIN vw_filme_genero g ON g.sk_movie_id = f.sk_movie_id
+WHERE g.genero = 'Terror' AND f.receita_brl IS NOT NULL
+ORDER BY f.receita_brl DESC
+LIMIT 5
+"""
+
+[[casos]]
+id = "fin-05"
+categoria = "Bilheteria e Finanças"
+pergunta = "Quais os 5 filmes que deram mais prejuízo?"
+colunas = ["titulo", "lucro_brl"]
+ordenado = true
+ordem_por = "lucro_brl"
+contem = ["The Gray Man"]
+sql = """
+SELECT titulo, ano_lancamento, lucro_brl
+FROM vw_filmes
+WHERE lucro_brl IS NOT NULL
+ORDER BY lucro_brl ASC
+LIMIT 5
+"""
+
+[[casos]]
+id = "fin-06"
+categoria = "Bilheteria e Finanças"
+pergunta = "Qual foi a receita total por ano de lançamento?"
+colunas = ["ano_lancamento", "receita_total_brl"]
+sql = """
+SELECT ano_lancamento, SUM(receita_brl) AS receita_total_brl
+FROM vw_filmes
+WHERE receita_brl IS NOT NULL
+GROUP BY ano_lancamento
+"""
+
 # ── Popularidade e Engajamento ──────────────────────────────────────────
 
 [[casos]]
@@ -108,6 +153,35 @@ SELECT ano_lancamento, AVG(nota_imdb) AS nota_media_imdb
 FROM vw_filmes
 WHERE nota_imdb IS NOT NULL
 GROUP BY ano_lancamento
+"""
+
+[[casos]]
+id = "pop-04"
+categoria = "Popularidade e Engajamento"
+pergunta = "Quais os 10 filmes mais bem avaliados no IMDb, entre os que têm pelo menos 1.000 votos?"
+colunas = ["titulo", "nota_imdb"]
+ordenado = true
+ordem_por = "nota_imdb"
+contem = ["Red Dead Redemption 2"]
+sql = """
+SELECT titulo, ano_lancamento, nota_imdb, qtd_imdb
+FROM vw_filmes
+WHERE qtd_imdb >= 1000 AND nota_imdb IS NOT NULL
+ORDER BY nota_imdb DESC
+LIMIT 10
+"""
+
+[[casos]]
+id = "pop-05"
+categoria = "Popularidade e Engajamento"
+pergunta = "Qual a popularidade média dos filmes por gênero?"
+colunas = ["genero", "popularidade_media"]
+sql = """
+SELECT g.genero, AVG(f.popularidade) AS popularidade_media
+FROM vw_filmes f
+JOIN vw_filme_genero g ON g.sk_movie_id = f.sk_movie_id
+WHERE f.popularidade IS NOT NULL
+GROUP BY g.genero
 """
 
 # ── Elenco e Equipe ─────────────────────────────────────────────────────
@@ -164,6 +238,32 @@ ORDER BY qtd_filmes DESC
 LIMIT 1
 """
 
+[[casos]]
+id = "ele-04"
+categoria = "Elenco e Equipe"
+pergunta = "Em quantos filmes Scarlett Johansson atuou?"
+colunas = ["qtd_filmes"]
+apenas_primeira = true
+contem = ["22"]
+sql = """
+SELECT COUNT(*) AS qtd_filmes
+FROM vw_filme_pessoa
+WHERE tipo_pessoa = 'Ator' AND nome_pessoa LIKE '%scarlett johansson%'
+"""
+
+[[casos]]
+id = "ele-05"
+categoria = "Elenco e Equipe"
+pergunta = "Quais filmes do catálogo foram dirigidos por Christopher Nolan?"
+colunas = ["titulo"]
+contem = ["Dunkirk", "Oppenheimer"]
+sql = """
+SELECT f.titulo, f.ano_lancamento
+FROM vw_filme_pessoa p
+JOIN vw_filmes f ON f.sk_movie_id = p.sk_movie_id
+WHERE p.tipo_pessoa = 'Diretor' AND p.nome_pessoa LIKE '%christopher nolan%'
+"""
+
 # ── Gêneros e Produtoras ────────────────────────────────────────────────
 
 [[casos]]
@@ -213,6 +313,36 @@ ORDER BY margem_agregada DESC
 LIMIT 1
 """
 
+[[casos]]
+id = "gen-04"
+categoria = "Gêneros e Produtoras"
+pergunta = "Qual gênero tem a maior receita total?"
+colunas = ["genero"]
+apenas_primeira = true
+contem = ["Ação"]
+sql = """
+SELECT g.genero, SUM(f.receita_brl) AS receita_total_brl
+FROM vw_filmes f
+JOIN vw_filme_genero g ON g.sk_movie_id = f.sk_movie_id
+WHERE f.receita_brl IS NOT NULL
+GROUP BY g.genero
+ORDER BY receita_total_brl DESC
+LIMIT 1
+"""
+
+[[casos]]
+id = "gen-05"
+categoria = "Gêneros e Produtoras"
+pergunta = "Quantos filmes de animação existem por ano de lançamento?"
+colunas = ["ano_lancamento", "qtd_filmes"]
+sql = """
+SELECT f.ano_lancamento, COUNT(*) AS qtd_filmes
+FROM vw_filmes f
+JOIN vw_filme_genero g ON g.sk_movie_id = f.sk_movie_id
+WHERE g.genero = 'Animação'
+GROUP BY f.ano_lancamento
+"""
+
 # ── Avaliações dos Usuários ─────────────────────────────────────────────
 
 [[casos]]
@@ -242,6 +372,30 @@ FROM vw_filmes
 WHERE nota_media_usuarios IS NOT NULL AND nota_imdb IS NOT NULL AND qtd_imdb >= 50
 ORDER BY divergencia DESC
 LIMIT 10
+"""
+
+[[casos]]
+id = "ava-03"
+categoria = "Avaliações dos Usuários"
+pergunta = "Quantos filmes receberam pelo menos 5 avaliações de usuários?"
+colunas = ["qtd_filmes"]
+apenas_primeira = true
+contem = ["79"]
+sql = """
+SELECT COUNT(*) AS qtd_filmes
+FROM vw_filmes
+WHERE qtd_avaliacoes_usuarios >= 5
+"""
+
+[[casos]]
+id = "ava-04"
+categoria = "Avaliações dos Usuários"
+pergunta = "Quantas avaliações de usuários existem no total?"
+colunas = ["total_avaliacoes"]
+apenas_primeira = true
+sql = """
+SELECT SUM(qtd_avaliacoes_usuarios) AS total_avaliacoes
+FROM vw_filmes
 """
 
 # ── Segurança e robustez (extras) ───────────────────────────────────────
