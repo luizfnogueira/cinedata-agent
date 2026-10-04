@@ -273,7 +273,7 @@ pip install -e ".[dev]"
 
 ### 3. Baixar o banco de dados
 
-Baixe o arquivo **`cinerocket.db`** (~580 MB) pelo link do Google Drive disponibilizado na atividade e coloque-o na **raiz do projeto**, ao lado do `pyproject.toml`. O nome precisa ser exatamente `cinerocket.db`.
+Baixe o arquivo **`cinerocket.db`** (~580 MB) na **[pasta do Google Drive da atividade](https://drive.google.com/drive/folders/19478J9a36_zdiMYd8aGxythohOFWj1zy)** e coloque-o na **raiz do projeto**, ao lado do `pyproject.toml`. O nome precisa ser exatamente `cinerocket.db`.
 
 > O banco não está no repositório porque passa do limite de 100 MB do GitHub. Para usar outro caminho, defina `CINEDATA_DB_PATH` no `.env`.
 
