@@ -8,5 +8,7 @@ toolbarMode = "minimal"
 gatherUsageStats = false
 
 [theme]
+# Tema escuro fixo (o gráfico usa o passo de azul do tema escuro).
+base = "dark"
 # Mesmo azul dos gráficos.
-primaryColor = "#2a78d6"
+primaryColor = "#3987e5"
