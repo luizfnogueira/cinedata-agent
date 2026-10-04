@@ -5,6 +5,7 @@ A CLI e a interface Streamlit usam só esta classe, sem montar as peças por con
 
 import asyncio
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 from openai import AsyncOpenAI
 from pydantic_ai.models import Model
@@ -28,6 +29,14 @@ def is_cacheable(answer: AgentAnswer) -> bool:
 
 
 class CineDataService:
+    """Ponto único de uso do agente.
+
+    Todas as perguntas rodam numa thread dedicada, sempre a mesma. O cliente HTTP
+    assíncrono fica preso ao event loop da thread onde foi usado pela primeira vez;
+    o Streamlit atende cada sessão em uma thread diferente, e reaproveitar o
+    cliente a partir de outra thread pode travar ou falhar.
+    """
+
     def __init__(
         self,
         db: Database,
@@ -40,6 +49,7 @@ class CineDataService:
         self.cache = cache
         self.agent = create_agent(model)
         self._http_client = http_client
+        self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="cinedata-agent")
 
     @classmethod
     def from_settings(cls, settings: Settings, *, model_name: str | None = None, use_cache: bool = True) -> "CineDataService":
@@ -57,29 +67,38 @@ class CineDataService:
         """Responde a pergunta, consultando o cache antes de gastar requisições."""
         if use_cache and self.cache and (cached := self.cache.get(question)):
             return cached
-        answer = ask(self.agent, question, self.db)
+        answer = self._worker.submit(ask, self.agent, question, self.db).result()
         if self.cache and is_cacheable(answer):
             self.cache.put(answer)
         return answer
 
+    def _close_http_client(self) -> None:
+        # Roda na thread do agente: fecha o cliente no mesmo event loop em que ele trabalhou
+        # (o run_sync do PydanticAI cria e registra um loop por thread).
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", DeprecationWarning)
+                loop = asyncio.get_event_loop()
+        except RuntimeError:
+            # Nenhuma pergunta chegou ao modelo nesta thread: fecha num loop temporário.
+            asyncio.run(self._http_client.close())
+            return
+        if not loop.is_closed():
+            loop.run_until_complete(self._http_client.close())
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            loop.close()
+
     def close(self) -> None:
-        """Fecha o cliente HTTP e o banco explicitamente.
+        """Fecha o cliente HTTP, a thread do agente e o banco explicitamente.
 
         Deixar as conexões HTTPS assíncronas e a conexão SQLite (que tem callbacks
         Python) para a finalização do interpretador causou um segmentation fault ao
         fim de uma avaliação com chamadas reais ao modelo.
         """
         if self._http_client is not None:
-            # O run_sync do PydanticAI usa o event loop corrente da thread principal:
-            # o cliente precisa ser fechado nesse mesmo loop.
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", DeprecationWarning)
-                loop = asyncio.get_event_loop()
-            if not loop.is_closed():
-                loop.run_until_complete(self._http_client.close())
-                loop.run_until_complete(loop.shutdown_asyncgens())
-                loop.close()
+            self._worker.submit(self._close_http_client).result()
             self._http_client = None
+        self._worker.shutdown(wait=True)
         self.db.close()
 
     def __enter__(self) -> "CineDataService":

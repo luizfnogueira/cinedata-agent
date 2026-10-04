@@ -1,8 +1,10 @@
 """Roda a suíte de avaliação do agente e gera o relatório em evals/resultados/.
 
 Uso (com o venv ativo, na raiz do projeto):
+    python evals/run_evals.py --listar             # lista as perguntas cadastradas (0 requisições)
     python evals/run_evals.py --dry-run            # só valida os SQLs de referência (0 requisições)
     python evals/run_evals.py                      # roda todos os casos
+    python evals/run_evals.py --mostrar            # idem, imprimindo resposta e SQL de cada pergunta
     python evals/run_evals.py --ids fin-01,ele-02  # só alguns casos
     python evals/run_evals.py --categoria Elenco   # só uma categoria (busca por trecho do nome)
     python evals/run_evals.py --sem-cache          # ignora respostas guardadas
@@ -45,6 +47,34 @@ def select_cases(cases: list[EvalCase], ids: str | None, categoria: str | None) 
     if categoria:
         cases = [c for c in cases if categoria.lower() in c.categoria.lower()]
     return cases
+
+
+def list_cases(cases: list[EvalCase]) -> int:
+    """Mostra as perguntas cadastradas, agrupadas por categoria (sem chamar o modelo)."""
+    category = None
+    for case in cases:
+        if case.categoria != category:
+            category = case.categoria
+            print(f"\n{category}")
+        kind = " (deve recusar)" if case.tipo == "recusa" else ""
+        print(f"  [{case.id}] {case.pergunta}{kind}")
+    print(f"\n{len(cases)} perguntas em {CASES_PATH.relative_to(PROJECT_ROOT)}")
+    return 0
+
+
+def print_answer(result: CaseResult) -> None:
+    """Resposta do agente e SQL executado, para acompanhar a avaliação pergunta a pergunta."""
+    if result.answer is None:
+        return
+    print(f"    Pergunta: {result.case.pergunta}")
+    for line in result.answer.answer.strip().splitlines():
+        print(f"    │ {line}")
+    final = result.answer.final_query
+    if final is not None:
+        print("    SQL do agente:")
+        for line in final.sql.strip().splitlines():
+            print(f"    │ {line}")
+    print()
 
 
 def dry_run(cases: list[EvalCase]) -> int:
@@ -114,6 +144,8 @@ def main() -> int:
         sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 
     parser = argparse.ArgumentParser(description="Avaliação do agente CineData.")
+    parser.add_argument("--listar", action="store_true", help="só lista as perguntas cadastradas, sem chamar o modelo")
+    parser.add_argument("--mostrar", action="store_true", help="imprime a resposta e o SQL do agente em cada pergunta")
     parser.add_argument("--dry-run", action="store_true", help="só valida os SQLs de referência, sem chamar o modelo")
     parser.add_argument("--ids", help="ids separados por vírgula (ex.: fin-01,ele-02)")
     parser.add_argument("--categoria", help="filtra por trecho do nome da categoria")
@@ -126,6 +158,8 @@ def main() -> int:
     if not cases:
         print("Nenhum caso selecionado.")
         return 1
+    if args.listar:
+        return list_cases(cases)
     if args.dry_run:
         return dry_run(cases)
 
@@ -153,6 +187,8 @@ def main() -> int:
             origin = ("cache" if a.cached else f"{a.requests} req · {a.model_name}") if a else "-"
             detail = f" · {result.motivo}" if result.motivo else ""
             print(f"[{case.id}] {STATUS_ICON[result.status]} {result.status:<6} {origin} · {result.elapsed_seconds:.1f} s{detail}")
+            if args.mostrar:
+                print_answer(result)
             if is_quota_exhausted(result):
                 print("Cota diária esgotada: interrompendo. Os casos restantes não foram executados.")
                 break

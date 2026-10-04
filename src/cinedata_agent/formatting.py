@@ -16,6 +16,11 @@ def _pt_number(value: float, decimals: int) -> str:
     return f"{value:,.{decimals}f}".replace(",", "_").replace(".", ",").replace("_", ".")
 
 
+def format_number(value: float) -> str:
+    """Número genérico no padrão brasileiro: 2994.357 -> '2.994,36'; inteiros sem casas."""
+    return _pt_number(value, 0 if isinstance(value, int) else 2)
+
+
 def format_money(value: float, symbol: str = "R$") -> str:
     sign = "-" if value < 0 else ""
     amount = abs(value)
