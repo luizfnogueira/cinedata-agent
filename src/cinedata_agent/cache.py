@@ -34,7 +34,7 @@ def cache_fingerprint(system_prompt: str, db_path: Path, model_name: str) -> str
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
-def _answer_to_json(answer: AgentAnswer) -> str:
+def answer_to_json(answer: AgentAnswer) -> str:
     queries = [
         {
             "sql": q.sql,
@@ -54,7 +54,7 @@ def _answer_to_json(answer: AgentAnswer) -> str:
     return json.dumps(payload, ensure_ascii=False, default=str)
 
 
-def _answer_from_json(raw: str) -> AgentAnswer:
+def answer_from_json(raw: str) -> AgentAnswer:
     payload = json.loads(raw)
     queries = [
         ExecutedQuery(
@@ -116,13 +116,13 @@ class AnswerCache:
     def get(self, question: str) -> AgentAnswer | None:
         with self._connect() as conn:
             row = conn.execute("SELECT resposta_json FROM respostas WHERE chave = ?", (self.key(question),)).fetchone()
-        return _answer_from_json(row[0]) if row else None
+        return answer_from_json(row[0]) if row else None
 
     def put(self, answer: AgentAnswer) -> None:
         with self._connect() as conn:
             conn.execute(
                 "INSERT OR REPLACE INTO respostas (chave, pergunta, resposta_json, criado_em) VALUES (?, ?, ?, ?)",
-                (self.key(answer.question), answer.question, _answer_to_json(answer), datetime.now().isoformat(timespec="seconds")),
+                (self.key(answer.question), answer.question, answer_to_json(answer), datetime.now().isoformat(timespec="seconds")),
             )
 
     def clear(self) -> int:
