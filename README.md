@@ -12,7 +12,7 @@
   <img alt="OpenRouter" src="https://img.shields.io/badge/OpenRouter-modelos%20%3Afree-6467F2" />
   <img alt="Streamlit" src="https://img.shields.io/badge/Streamlit-1.64-FF4B4B?logo=streamlit&logoColor=white" />
   <img alt="SQLite" src="https://img.shields.io/badge/SQLite-003B57?logo=sqlite&logoColor=white" />
-  <img alt="Pytest" src="https://img.shields.io/badge/Pytest-163%20testes-0A9EDC?logo=pytest&logoColor=white" />
+  <img alt="Pytest" src="https://img.shields.io/badge/Pytest-168%20testes-0A9EDC?logo=pytest&logoColor=white" />
 </p>
 
 ---
@@ -83,7 +83,8 @@ O agente responde às perguntas de todas as categorias da atividade (e a qualque
 Das sugestões da atividade, o projeto implementa:
 
 - **Guardrails**: três camadas impedem qualquer alteração no banco. O SQL gerado é validado com `sqlglot` (só aceita uma consulta `SELECT`/`WITH` sobre tabelas permitidas), o próprio SQLite nega qualquer ação que não seja leitura e o arquivo é aberto em modo somente leitura. Pedidos como "apague os filmes de terror" são recusados.
-- **Interface visual**: chat em Streamlit, com tema escuro e perguntas de exemplo.
+- **Interface visual**: chat em Streamlit no estilo do Gemini, com tema escuro, sugestões de perguntas na tela inicial e exemplos por categoria.
+- **Histórico de conversas**: as conversas ficam salvas na barra lateral (inclusive ao recarregar a página) e podem ser reabertas, fixadas no topo ou excluídas.
 - **Gráficos**: barras para rankings e linha para séries por ano, escolhidos automaticamente pelo formato do resultado.
 - **Fallback entre modelos gratuitos**: se o modelo principal estiver lotado ou demorar mais de 45 s, o próximo assume sozinho.
 - **Cache de respostas**: uma pergunta repetida (mesmo com outra pontuação ou sem acentos) volta na hora, sem gastar requisições.
@@ -97,19 +98,21 @@ Das sugestões da atividade, o projeto implementa:
 
 <img src="docs/screenshots/inicio.png" alt="Tela inicial do CineData Analytics" width="100%" />
 
-Ao abrir a aplicação, o usuário vê o título **CineData Analytics** e o campo de pergunta no rodapé da página ("Ex.: Quais os 5 filmes mais populares?"). A barra lateral explica **como usar**: as perguntas são feitas em português, o agente consulta a camada Gold e responde com os dados, sem alterar nada. Logo abaixo ficam o botão **Nova conversa**, que limpa o histórico, e as **perguntas de exemplo**, agrupadas nas cinco categorias de análise da atividade. Basta clicar em uma delas para enviá-la ao agente.
+A tela inicial segue o estilo do Gemini: uma saudação no centro (**"Olá! O que você quer saber sobre o catálogo de filmes?"**) com a caixa **"Pergunte ao CineData"** logo abaixo. Embaixo dela ficam quatro **sugestões de perguntas**, uma de cada tipo de análise; basta clicar em uma para enviá-la. Na barra lateral estão o botão **Nova conversa**, a lista de conversas **Recentes** e as **perguntas de exemplo**, agrupadas nas cinco categorias de análise da atividade.
 
-### Resposta com gráfico
+### Conversa com gráfico e histórico
 
-<img src="docs/screenshots/resposta-com-grafico.png" alt="Resposta do agente com gráfico de barras" width="100%" />
+<img src="docs/screenshots/resposta-com-grafico.png" alt="Resposta do agente com gráfico de barras e histórico de conversas" width="100%" />
 
-Exemplo da pergunta **"Quais são os 10 filmes com maior receita em R$?"**, enviada pela categoria **Bilheteria e Finanças** da barra lateral (aberta à esquerda, com as perguntas disponíveis). O agente responde com a lista numerada (título, ano e receita já formatada em **R$ bi**), explica a premissa usada (só entram filmes com receita informada) e gera um **gráfico de barras horizontais**, na ordem do ranking, com o eixo em bilhões de reais. Passar o mouse sobre uma barra mostra o valor exato.
+Exemplo da pergunta **"Quais são os 5 filmes mais populares?"**. O agente responde com a lista numerada (título, ano e índice de popularidade no padrão brasileiro), explica a premissa usada e gera um **gráfico de barras horizontais** na ordem do ranking; passar o mouse sobre uma barra mostra o valor exato. Depois da primeira pergunta, a caixa de pergunta vai para o rodapé, e as próximas perguntas continuam na mesma conversa.
+
+Na barra lateral, a conversa aberta aparece destacada em **Recentes**, com o título da primeira pergunta. As conversas ficam salvas mesmo ao recarregar a página: clicar em uma delas reabre as respostas, os gráficos e as tabelas sem consultar o modelo de novo. O menu **⋮** de cada conversa permite **fixá-la** no topo da lista (📌) ou **excluí-la**.
 
 ### Dados da consulta
 
 <img src="docs/screenshots/dados-da-consulta.png" alt="Tabela de dados e SQL gerado" width="600" />
 
-Abaixo de cada resposta fica o painel **Ver dados da consulta**. Ele mostra a tabela com o resultado que embasou a resposta (no exemplo, título, ano de lançamento e receita em R$) e a **consulta SQL gerada pelo agente**, sempre de somente leitura. Assim, quem quiser pode conferir de onde vieram os números.
+Abaixo de cada resposta fica o painel **Ver dados da consulta**. Ele mostra a tabela com o resultado que embasou a resposta (no exemplo, título, ano de lançamento e popularidade) e a **consulta SQL gerada pelo agente**, sempre de somente leitura. Assim, quem quiser pode conferir de onde vieram os números.
 
 ---
 
@@ -154,7 +157,7 @@ Uma pergunta típica usa **2 requisições** ao modelo: uma para gerar o SQL e o
 | **Guardrails** | `sqlglot` (análise do SQL) + *authorizer* do SQLite + conexão read-only |
 | **Interface** | Streamlit (chat) + Altair (gráficos) |
 | **Configuração** | `pydantic-settings` + arquivo `.env` |
-| **Qualidade** | Pytest (163 testes, sem gastar cota) + suíte de avaliação com SQL de referência |
+| **Qualidade** | Pytest (168 testes, sem gastar cota) + suíte de avaliação com SQL de referência |
 
 ---
 
@@ -165,7 +168,7 @@ O código fica em um pacote Python (`src/cinedata_agent`), com um módulo por re
 ```text
 cinedata-agent/
 ├── app/
-│   └── streamlit_app.py      # Interface de chat (Streamlit)
+│   └── streamlit_app.py      # Interface de chat no estilo Gemini (Streamlit)
 ├── src/cinedata_agent/
 │   ├── agent.py              # Agente PydanticAI + ferramenta run_sql
 │   ├── prompts.py            # System prompt: dicionário de dados e regras de negócio
@@ -175,6 +178,7 @@ cinedata-agent/
 │   ├── llm.py                # Modelos do OpenRouter, timeout e fallback
 │   ├── service.py            # Fachada: banco + modelo + agente + cache
 │   ├── cache.py              # Cache de respostas em SQLite
+│   ├── history.py            # Histórico de conversas da interface (SQLite)
 │   ├── charts.py             # Escolha e desenho automático do gráfico
 │   ├── formatting.py         # R$ mi/bi, %, números no padrão brasileiro
 │   ├── errors.py             # Mensagens de erro em português
@@ -357,7 +361,7 @@ O contador renova à **meia-noite UTC (21h no horário de Brasília)**, e requis
 - limita cada pergunta a **4 requisições**;
 - desliga as **retentativas automáticas** do cliente HTTP;
 - não troca de modelo quando a cota diária acabou (todos falhariam igual);
-- roda os **163 testes com modelos simulados**, sem nenhuma requisição real.
+- roda os **168 testes com modelos simulados**, sem nenhuma requisição real.
 
 Para ver quantas requisições restam: `python cli.py --cota` ou o painel **[openrouter.ai/activity](https://openrouter.ai/activity)**.
 
@@ -383,7 +387,8 @@ Eles cobrem os guardrails (comandos de escrita, injeção de SQL, tabelas não p
 
 ## Limitações conhecidas
 
-- **Sem memória de conversa**: cada pergunta é respondida de forma independente. Perguntas de acompanhamento ("e em 2020?") precisam repetir o contexto.
+- **Sem memória de contexto**: as conversas ficam salvas no histórico, mas o agente responde cada pergunta de forma independente. Perguntas de acompanhamento ("e em 2020?") precisam repetir o contexto.
+- **Histórico local**: as conversas ficam em `.cache/conversas.db`, na máquina onde o app roda, e são compartilhadas por quem usa essa instalação.
 - **Dados de origem**: há títulos repetidos no catálogo (ex.: "Emesis Blue" aparece 36 vezes, com ids diferentes vindos da fonte) e alguns nomes inválidos nas tabelas de pessoas e produtoras (ex.: "English", "Documentary").
 - **Modelos gratuitos**: a disponibilidade varia ao longo do dia. O fallback reduz o problema, mas em horários de pico uma resposta pode levar até ~1 minuto.
 
